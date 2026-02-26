@@ -1,0 +1,25 @@
+alias cat {
+    local('$bid $barch $handle $data $args');
+    $bid = $1;
+
+    if (size(@_) < 2) {
+        berror($bid, "Usage: cat <file_path>");
+        return;
+    }
+
+    # Determine architecture
+    $barch  = barch($bid);
+
+    # Read the BOF file
+    $handle = openf(script_resource("cat.o"));
+    $data   = readb($handle, -1);
+    closef($handle);
+
+    # Pack the argument (b = binary/blob, which BeaconDataExtract expects)
+    # i changed with b to z
+    $args   = bof_pack($bid, "z", $2);
+
+    # Execute
+    btask($bid, "Running cat BOF by @lineeralgebra");
+    beacon_inline_execute($bid, $data, "go", $args);
+}
