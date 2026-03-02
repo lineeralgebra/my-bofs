@@ -1,0 +1,30 @@
+# whoami BOF - Cobalt Strike Aggressor Script
+
+alias whoami-bof {
+    local('$handle $bof $args');
+
+    # Determine architecture
+    $barch = barch($1);
+
+    if ($barch eq "x64") {
+        $handle = openf(script_resource("whoami.x64.o"));
+    } else {
+        $handle = openf(script_resource("whoami.x86.o"));
+    }
+
+    $bof = readb($handle, -1);
+    closef($handle);
+
+    # No arguments needed
+    $args = bof_pack($1, "");
+
+    # Execute BOF
+    btask($bid, "Running whoami-bof BOF by @lineeralgebra");
+    beacon_inline_execute($1, $bof, "go", $args);
+}
+
+beacon_command_register(
+    "whoami-bof",
+    "Get current user info, group memberships, and privileges (BOF)",
+    "Synopsis: whoami-bof\n\nShows current user SID, group memberships, and token privileges."
+);
