@@ -1,0 +1,16 @@
+alias info {
+    local('$bid $barch $handle $data');
+    $bid = $1;
+
+    # Determine architecture
+    $barch  = barch($bid);
+
+    # Read the BOF file
+    $handle = openf(script_resource("info.o"));
+    $data   = readb($handle, -1);
+    closef($handle);
+
+    # Execute
+    btask($bid, "Running info BOF by @lineeralgebra");
+    beacon_inline_execute($bid, $data, "go", $null);
+}
