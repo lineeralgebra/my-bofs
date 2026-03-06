@@ -1,0 +1,24 @@
+alias enum_computers {
+    local('$bid $barch $handle $data $args');
+    $bid = $1;
+
+    # Determine architecture
+    $barch  = barch($bid);
+
+    # Read the BOF file
+    $handle = openf(script_resource("enum_computers.o"));
+    $data   = readb($handle, -1);
+    closef($handle);
+
+    # Pack the argument (optional domain)
+    # Use "z" for ANSI string, or empty string if not provided
+    if (size(@_) < 2) {
+        $args = bof_pack($bid, "z", "");
+    } else {
+        $args = bof_pack($bid, "z", $2);
+    }
+
+    # Execute
+    btask($bid, "Executing enum_computers BOF by @lineeralgebra");
+    beacon_inline_execute($bid, $data, "go", $args);
+}
