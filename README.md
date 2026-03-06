@@ -8,3 +8,5 @@ https://github.com/lineeralgebra/my-bofs/tree/main/whoami-bof
 ### info bof
 https://github.com/lineeralgebra/my-bofs/tree/main/info
 -> it was great test to use win32api on this 
+### enum bofs
+-> there is winldap.h file everything is straight forward 
