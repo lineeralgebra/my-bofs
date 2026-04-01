@@ -10,3 +10,5 @@ https://github.com/lineeralgebra/my-bofs/tree/main/info
 -> it was great test to use win32api on this 
 ### enum bofs
 -> there is winldap.h file everything is straight forward 
+
+for backup i can do crete smb listener to copy on smb shares
