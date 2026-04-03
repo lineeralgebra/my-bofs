@@ -1,0 +1,27 @@
+alias maq {
+    local('$bid $barch $handle $data $args $domain $dc');
+    $bid = $1;
+
+    if (size(@_) < 3) {
+        berror($bid, "Usage: maq <domain> <dc>");
+        return;
+    }
+
+    $domain = $2;
+    $dc = $3;
+
+    # Determine architecture
+    $barch  = barch($bid);
+
+    # Read the BOF file (assuming 64-bit for now, or based on arch)
+    $handle = openf(script_resource("maq.o"));
+    $data   = readb($handle, -1);
+    closef($handle);
+
+    # Pack the arguments: 'z' for null-terminated strings
+    $args   = bof_pack($bid, "zz", $domain, $dc);
+
+    # Execute
+    btask($bid, "Running Machine Account Quota (maq) BOF by @lineeralgebra");
+    beacon_inline_execute($bid, $data, "go", $args);
+}
