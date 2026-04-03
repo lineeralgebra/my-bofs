@@ -12,3 +12,8 @@ https://github.com/lineeralgebra/my-bofs/tree/main/info
 -> there is winldap.h file everything is straight forward 
 
 for backup i can do crete smb listener to copy on smb shares
+
+### dir bof
+for dir directory
+### maq
+machine account quota checker on LDAP DC usage is in the cna file
