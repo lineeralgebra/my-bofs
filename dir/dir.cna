@@ -1,0 +1,24 @@
+alias dir {
+    local('$bid $barch $handle $data $args');
+    $bid = $1;
+
+    # Determine architecture
+    $barch  = barch($bid);
+
+    # Read the BOF file
+    $handle = openf(script_resource("dir.o"));
+    $data   = readb($handle, -1);
+    closef($handle);
+
+    # Pack the argument (z = zero-terminated string)
+    # If no path given, pass empty string (BOF defaults to current dir)
+    if (size(@_) < 2) {
+        $args = bof_pack($bid, "z", "");
+    } else {
+        $args = bof_pack($bid, "z", $2);
+    }
+
+    # Execute
+    btask($bid, "Running dir BOF by @lineeralgebra");
+    beacon_inline_execute($bid, $data, "go", $args);
+}
