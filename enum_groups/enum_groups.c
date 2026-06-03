@@ -18,15 +18,26 @@ DECLSPEC_IMPORT ULONG WINAPI WLDAP32$ldap_unbind(LDAP*);
 
 /* MSVCRT.dll */
 DECLSPEC_IMPORT size_t WINAPI MSVCRT$strlen(const char*);
+DECLSPEC_IMPORT int WINAPI MSVCRT$wcscmp(const wchar_t*, const wchar_t*);
+DECLSPEC_IMPORT int WINAPI MSVCRT$_snwprintf(wchar_t*, size_t, const wchar_t*, ...);
 
 void go(char* args, int len) {
     datap parser;
     BeaconDataParse(&parser, args, len);
 
-    /* optional domain argument */
+    /* Extract arguments */
+    char* target_a = BeaconDataExtract(&parser, NULL);
     char* domain_a = BeaconDataExtract(&parser, NULL);
-    wchar_t domain_w[256];
+
+    wchar_t target_w[256] = {0};
+    wchar_t domain_w[256] = {0};
     wchar_t* pDomain = NULL;
+
+    if (target_a && MSVCRT$strlen(target_a) > 0) {
+        toWideChar(target_a, target_w, 256);
+    } else {
+        MSVCRT$_snwprintf(target_w, 256, L"all");
+    }
 
     if (domain_a && MSVCRT$strlen(domain_a) > 0) {
         if (toWideChar(domain_a, domain_w, 256)) {
@@ -80,49 +91,84 @@ void go(char* args, int len) {
         return;
     }
 
-    /* Search for all groups */
+    /* Search logic */
     LDAPMessage* searchResult = NULL;
-    PWSTR attrs[] = { L"cn", L"member", L"description", NULL };
+    BOOL queryAll = (MSVCRT$wcscmp(target_w, L"all") == 0);
+    int count = 0;
 
-    res = WLDAP32$ldap_search_ext_sW(ld, baseDN, LDAP_SCOPE_SUBTREE, L"(objectClass=group)", attrs, 0, NULL, NULL, NULL, 0, &searchResult);
+    if (queryAll) {
+        PWSTR attrs[] = { L"cn", L"member", L"description", NULL };
+        res = WLDAP32$ldap_search_ext_sW(ld, baseDN, LDAP_SCOPE_SUBTREE, L"(objectClass=group)", attrs, 0, NULL, NULL, NULL, 0, &searchResult);
+    } else {
+        wchar_t filter[512];
+        MSVCRT$_snwprintf(filter, 512, L"(&(objectClass=group)(cn=%ls))", target_w);
+        PWSTR attrs[] = { L"cn", L"member", L"description", NULL };
+        res = WLDAP32$ldap_search_ext_sW(ld, baseDN, LDAP_SCOPE_SUBTREE, filter, attrs, 0, NULL, NULL, NULL, 0, &searchResult);
+        
+        if (res == LDAP_SUCCESS) {
+            count = WLDAP32$ldap_count_entries(ld, searchResult);
+        }
 
-    if (res != LDAP_SUCCESS) {
+        if (count == 0) {
+            if (searchResult) {
+                WLDAP32$ldap_msgfree(searchResult);
+                searchResult = NULL;
+            }
+            MSVCRT$_snwprintf(filter, 512, L"(&(objectClass=user)(sAMAccountName=%ls))", target_w);
+            PWSTR userAttrs[] = { L"sAMAccountName", L"memberOf", NULL };
+            res = WLDAP32$ldap_search_ext_sW(ld, baseDN, LDAP_SCOPE_SUBTREE, filter, userAttrs, 0, NULL, NULL, NULL, 0, &searchResult);
+        }
+    }
+
+    if (res != LDAP_SUCCESS || !searchResult) {
         BeaconPrintf(CALLBACK_ERROR, "ldap_search failed: 0x%x", res);
         if (rootResult) WLDAP32$ldap_msgfree(rootResult);
         WLDAP32$ldap_unbind(ld);
         return;
     }
 
-    int count = WLDAP32$ldap_count_entries(ld, searchResult);
+    count = WLDAP32$ldap_count_entries(ld, searchResult);
 
     formatp buffer;
     BeaconFormatAlloc(&buffer, 64 * 1024);
-    BeaconFormatPrintf(&buffer, "[+] Found %d group(s)\n\n", count);
+    BeaconFormatPrintf(&buffer, "[+] Found %d match(es)\n\n", count);
 
     LDAPMessage* entry = WLDAP32$ldap_first_entry(ld, searchResult);
     while (entry) {
-        /* Group name (cn) */
         PWSTR* cn = WLDAP32$ldap_get_valuesW(ld, entry, L"cn");
-        if (cn && cn[0]) {
-            BeaconFormatPrintf(&buffer, "Group: %ls\n", cn[0]);
-        }
+        PWSTR* sam = WLDAP32$ldap_get_valuesW(ld, entry, L"sAMAccountName");
 
-        /* Description */
-        PWSTR* desc = WLDAP32$ldap_get_valuesW(ld, entry, L"description");
-        if (desc && desc[0]) {
-            BeaconFormatPrintf(&buffer, "  Description: %ls\n", desc[0]);
-        }
-
-        /* Members */
-        PWSTR* members = WLDAP32$ldap_get_valuesW(ld, entry, L"member");
-        if (members) {
-            for (int i = 0; members[i] != NULL; i++) {
-                BeaconFormatPrintf(&buffer, "    - %ls\n", members[i]);
+        if (sam && sam[0]) {
+            BeaconFormatPrintf(&buffer, "User: %ls\n", sam[0]);
+            PWSTR* memberOf = WLDAP32$ldap_get_valuesW(ld, entry, L"memberOf");
+            if (memberOf) {
+                BeaconFormatPrintf(&buffer, "  Member Of:\n");
+                for (int i = 0; memberOf[i] != NULL; i++) {
+                    BeaconFormatPrintf(&buffer, "    - %ls\n", memberOf[i]);
+                }
+                WLDAP32$ldap_value_freeW(memberOf);
+            } else {
+                BeaconFormatPrintf(&buffer, "  Member Of: (None or Primary Group only)\n");
             }
-            WLDAP32$ldap_value_freeW(members);
+        } else if (cn && cn[0]) {
+            BeaconFormatPrintf(&buffer, "Group: %ls\n", cn[0]);
+            PWSTR* desc = WLDAP32$ldap_get_valuesW(ld, entry, L"description");
+            if (desc && desc[0]) {
+                BeaconFormatPrintf(&buffer, "  Description: %ls\n", desc[0]);
+            }
+            if (desc) WLDAP32$ldap_value_freeW(desc);
+
+            PWSTR* members = WLDAP32$ldap_get_valuesW(ld, entry, L"member");
+            if (members) {
+                BeaconFormatPrintf(&buffer, "  Members:\n");
+                for (int i = 0; members[i] != NULL; i++) {
+                    BeaconFormatPrintf(&buffer, "    - %ls\n", members[i]);
+                }
+                WLDAP32$ldap_value_freeW(members);
+            }
         }
 
-        if (desc) WLDAP32$ldap_value_freeW(desc);
+        if (sam) WLDAP32$ldap_value_freeW(sam);
         if (cn) WLDAP32$ldap_value_freeW(cn);
 
         BeaconFormatPrintf(&buffer, "\n");

@@ -1,11 +1,16 @@
 alias enum_groups {
-    local('$bid $barch $handle $data $args $domain');
+    local('$bid $barch $handle $data $args $target $domain');
     $bid = $1;
 
-    # Optional domain argument
+    # Target and domain arguments
+    $target = "all";
     $domain = "";
+
     if (size(@_) >= 2) {
-        $domain = $2;
+        $target = $2;
+    }
+    if (size(@_) >= 3) {
+        $domain = $3;
     }
 
     # Determine architecture
@@ -16,14 +21,10 @@ alias enum_groups {
     $data   = readb($handle, -1);
     closef($handle);
 
-    # Pack arguments (z = zero-terminated string)
-    $args = bof_pack($bid, "z", $domain);
+    # Pack arguments (zz = zero-terminated string, zero-terminated string)
+    $args = bof_pack($bid, "zz", $target, $domain);
 
     # Execute
-    if ($domain eq "") {
-        btask($bid, "Running enum_groups BOF by @lineeralgebra (auto-discover)");
-    } else {
-        btask($bid, "Running enum_groups BOF by @lineeralgebra\n  Target: $domain");
-    }
+    btask($bid, "Running enum_groups BOF by @lineeralgebra\n  Target/Filter: $target\n  Domain: " . ($domain ? $domain : "auto-discover"));
     beacon_inline_execute($bid, $data, "go", $args);
 }
